@@ -60,7 +60,15 @@
 /* ── 核心引擎樣式 ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #111; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Noto Sans TC', sans-serif; }
-#viewport { position: relative; aspect-ratio: 1206 / 2622; max-width: 100%; max-height: 100%; background: var(--bg); overflow: hidden; }
+#viewport {
+  position: relative;
+  width: min(100vw, 100vh * 1206 / 2622);
+  height: min(100vh, 100vw * 2622 / 1206);
+  width: min(100vw, 100dvh * 1206 / 2622);
+  height: min(100dvh, 100vw * 2622 / 1206);
+  background: var(--bg);
+  overflow: hidden;
+}
 
 #intro-screen { position: absolute; inset: 0; background: var(--yellow); z-index: 5000; display: flex; align-items: center; justify-content: center; }
 .intro-text { font-family: var(--font-display); font-size: 21px; color: var(--ink); letter-spacing: 1px; }
