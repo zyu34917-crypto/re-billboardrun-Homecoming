@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>BILLBOARD RUN</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="viewport">
+    <!-- ✅ menu 在 scaled-root 外面，保持原比例 -->
+    <div id="menu-layer" style="display: none;">
+      <img src="images/menu_bg.png" class="menu-bg">
+      <img src="images/btn_start.png" id="nav-start" class="menu-btn">
+      <img src="images/btn_about.png" id="nav-about" class="menu-btn">
+      <img src="images/btn_refs.png" id="nav-refs" class="menu-btn">
+    </div>
+
+    <!-- ✅ 其他所有層縮小 50% -->
+    <div id="scaled-root">
+
+    <div id="intro-screen"><div class="intro-text">Congratulations.</div></div>
+    <div id="death-overlay" style="display: none;"></div>
+    <div id="full-image-layer" style="display: none;">
+      <img id="full-image-content" src=""><div class="full-image-hint">T A P &nbsp; T O &nbsp; C O N T I N U E</div>
+    </div>
+    <div id="transition-overlay"></div>
+
+    <div id="art-board-layer" style="display:none;">
+      <img src="images/final_board_art.png" id="art-full-bg">
+      <div id="art-canvas-container"><canvas id="art-canvas"></canvas></div>
+
+      <div id="art-xform-overlay" style="display:none;">
+        <button id="btn-rot-cw">↻ 旋轉</button>
+        <button id="btn-confirm-shape">確定放置</button>
+      </div>
+
+      <div class="art-nav-trigger" onclick="event.stopPropagation(); toggleNavMenu();">
+        <div></div><div></div><div></div>
+      </div>
+      <div id="dropdown-nav-art" class="art-dropdown" style="display:none;">
+        <div onclick="event.stopPropagation(); goBack();">BACK</div>
+        <div onclick="event.stopPropagation(); quitToMenu();">MENU</div>
+      </div>
+
+      <div id="art-ui-overlay">
+        <div class="art-cmy-panel">
+          <input type="range" id="slider-c" min="0" max="255" value="46">
+          <input type="range" id="slider-m" min="0" max="255" value="0">
+          <input type="range" id="slider-y" min="0" max="255" value="219">
+          <input type="range" id="slider-opa" min="10" max="100" value="100">
+          <div id="art-color-preview"></div>
+        </div>
+
+        <div class="art-tools-panel">
+          <button class="art-tool-btn active" data-tool="rect">
+            <svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="10" fill="currentColor"/></svg>
+          </button>
+          <button class="art-tool-btn" data-tool="triangle">
+            <svg viewBox="0 0 24 24"><path d="M12 4l9 15H3z" fill="currentColor"/></svg>
+          </button>
+          <button class="art-tool-btn" data-tool="circle">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="currentColor"/></svg>
+          </button>
+          <button class="art-tool-btn" data-tool="text">
+            <span>T</span>
+          </button>
+        </div>
+
+        <button id="art-done-btn">COMPLETE ▶</button>
+      </div>
+
+      <div id="art-text-modal" style="display:none;">
+        <div id="art-text-modal-inner">
+          <div class="art-modal-label">INPUT TEXT</div>
+          <input type="text" id="art-text-input" placeholder="..." maxlength="15">
+          <button id="art-text-confirm">CONFIRM</button>
+        </div>
+      </div>
+    </div>
+
+ <div id="upload-board-layer" style="display:none; position:absolute; inset:0; z-index:8000; background:#000;">
+  <img src="images/final_ud_bg.png" style="width:100%; height:100%; object-fit:contain;">
+  
+  <img src="images/final_ud_btn.png" id="upload-trigger-btn">
+  
+  <div class="upload-hint">*推薦圖片寬高4:3</div>
+</div>
+
+    <div id="final-result-layer" style="display:none; position:absolute; inset:0; z-index:9500; background:#000;">
+      <img id="final-result-bg" src="" style="width:100%; height:100%; object-fit:contain; position:absolute;">
+      <div id="final-result-artwork-wrap">
+        <img id="final-result-artwork-img" src="">
+      </div>
+      <button id="final-to-menu-btn">BACK TO MENU ▶</button>
+    </div>
+
+    <div id="game-root" style="display: none;"><div id="scene-card"></div></div>
+
+    </div><!-- /#scaled-root -->
+  </div>
+
+  <input type="file" id="image-uploader" accept="image/*" style="display:none;">
+
+  <script src="story.js"></script>
+  <script src="engine.js"></script>
+</body>
+</html>
