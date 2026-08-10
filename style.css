@@ -62,10 +62,9 @@
 body { background: #111; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Noto Sans TC', sans-serif; }
 #viewport {
   position: relative;
-  width: min(100vw, 100vh * 1206 / 2622);
-  height: min(100vh, 100vw * 2622 / 1206);
-  width: min(100vw, 100dvh * 1206 / 2622);
-  height: min(100dvh, 100vw * 2622 / 1206);
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   background: var(--bg);
   overflow: hidden;
 }
