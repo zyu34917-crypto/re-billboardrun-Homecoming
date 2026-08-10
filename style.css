@@ -59,8 +59,8 @@
 
 /* ── 核心引擎樣式 ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #111; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Noto Sans TC', sans-serif; }
-#viewport { position: relative; width: 100vw; height: 100vh; height: 100dvh; background: var(--bg); overflow: hidden; }
+body { background: #111; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Noto Sans TC', sans-serif; }
+#viewport { position: relative; aspect-ratio: 1206 / 2622; max-width: 100%; max-height: 100%; background: var(--bg); overflow: hidden; }
 
 #intro-screen { position: absolute; inset: 0; background: var(--yellow); z-index: 5000; display: flex; align-items: center; justify-content: center; }
 .intro-text { font-family: var(--font-display); font-size: 21px; color: var(--ink); letter-spacing: 1px; }
