@@ -2,6 +2,13 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Noto+Sans+TC:wght@300;500;700&display=swap');
 
+@font-face {
+  font-family: 'tudy1311';
+  src: url('tudy1311.otf') format('opentype');
+  font-weight: 1000;
+  font-display: swap;
+}
+
 :root {
   --bg: #f8f8f6; 
   --ink: #1A1A18; 
@@ -57,9 +64,20 @@
   user-select: none;
 }
 
+/* ── 🔧 禁止圖片被瀏覽器原生拖曳「抓起來」(跟地圖自訂的拖曳手勢是兩回事) ── */
+img, svg {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* ── 核心引擎樣式 ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #111; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Noto Sans TC', sans-serif; }
+body { background: #111 url('images/bg-dots-desktop.png') center / cover no-repeat; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Noto Sans TC', sans-serif; }
 #viewport {
   position: relative;
   width: 100vw;
@@ -69,66 +87,568 @@ body { background: #111; display: flex; align-items: center; justify-content: ce
   overflow: hidden;
 }
 
-#intro-screen { position: absolute; inset: 0; background: var(--yellow); z-index: 5000; display: flex; align-items: center; justify-content: center; }
+#intro-screen { position: fixed; inset: 0; background: var(--yellow); z-index: 5000; display: flex; align-items: center; justify-content: center; }
 .intro-text { font-family: var(--font-display); font-size: 21px; color: var(--ink); letter-spacing: 1px; }
 #death-overlay { position: absolute; inset: 0; background: #000; z-index: 10000; display: none; flex-direction: column; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.5s ease; }
 #death-restart-btn { position: absolute; bottom: 8%; right: 10%; width: 100px; cursor: pointer; z-index: 10010; }
 #full-image-layer { position: absolute; inset: 0; z-index: 7000; background: #000; display: none; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
 #full-image-content { width: 100%; height: 100%; object-fit: cover; }
 
-/* ── 主選單層與按鈕縮放 ── */
-#menu-layer { position: absolute; inset: 0; z-index: 100; display: none; }
-.menu-bg { width: 100%; height: 100%; object-fit: cover; }
-
-.menu-btn { 
-  position: absolute; 
-  cursor: pointer; 
-  z-index: 110; 
-  transition: transform 0.1s; 
+/* ── 主選單層（新版・響應式，脫離 #viewport 直式框架，依實際瀏覽器視窗定位）── 
+   設計稿基準：2880 x 1620（16:9）
+   - 螢幕比 16:9 更寬 → 左右露出青色色塊
+   - 螢幕比 16:9 更窄（更瘦長）→ 依高度撐滿、左右等量裁切
+   - menu-hero.png 隨著螢幕變窄往左位移，最多 424px（設計稿基準），
+     在畫面比例達到 9:16 時封頂，由 viewport-fit.js 計算並寫入 --menu-hero-shift
+*/
+#menu-layer {
+  position: fixed;       /* 相對瀏覽器視窗定位，不受 #viewport 直式比例限制 */
+  inset: 0;
+  z-index: 100;
+  display: none;
+  background: var(--cyan); /* 螢幕較寬時，兩側露出的色塊 */
+  overflow: hidden;
 }
-.menu-btn:active {
-  transform: scale(0.92);
+
+#menu-canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 100vh;
+  height: 100dvh;
+  width: 177.778vh;      /* 2880 / 1620 * 100vh，維持設計稿比例 */
+  width: 177.778dvh;
+  transform: translate(-50%, -50%);
 }
 
-#nav-start { width: 58%; top: 28.5%; left: 42%; }
-#nav-about { width: 38%; top: 59%; left: 22%; }
-#nav-refs  { width: 58%; top: 66%; left: 23%; }
+#menu-canvas img,
+#menu-canvas .menu-text { position: absolute; }
 
-/* ── 遊戲場景 ── */
-#game-root { position: absolute; inset: 0; display: none; flex-direction: column; z-index: 50; }
-#scene-card { width: 100%; height: 100%; display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: none; }
+#menu-back { width: 100%; height: 100%; left: 0; top: 0; }
 
-.ui-header { position: relative; width: 100%; height: 120px; flex-shrink: 0; z-index: 10; }
-.date-badge { position: absolute; top: 22.5px; left: -10px; width: 80px; height: 80px; background: var(--cyan); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.date-badge-inner { width: 92%; height: 92%; background: var(--yellow); border-radius: 50%; border: 1px solid var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.db-day { font-family: var(--font-display); font-size: 26px; color: var(--ink); line-height: 0.9; }
-.db-month { font-family: var(--font-display); font-size: 10px; color: var(--ink); }
-.status-bar-wrap { position: absolute; top: 37.5px; left: 65px; right: 0; }
-.status-text { font-family: var(--font-mono); font-size: 7px; font-weight: bold; margin-bottom: 2px; }
-.status-line-black { width: 100%; height: 4px; background: var(--ink); clip-path: polygon(0 0, 100% 0, 96% 100%, 0 100%); }
-.status-line-cyan { width: 75%; height: 2px; background: var(--cyan); margin-top: 2px; clip-path: polygon(0 0, 100% 0, 98% 100%, 0 100%); }
+#menu-hero {
+  width: 100.062vh;  width: 100.062dvh;
+  height: 42.16vh;   height: 42.16dvh;
+  left: 77.716vh;    left: 77.716dvh;
+  top: 57.901vh;     top: 57.901dvh;
+  /* 🎯 螢幕越窄，往左位移越多，由 viewport-fit.js 動態計算 */
+  transform: translateX(var(--menu-hero-shift, 0vh));
+}
 
-.scene-image-wrap { width: 100%; height: 175px; flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center; z-index: 100; }
-.scene-image-wrap img { position: absolute; transform: translateY(20px); max-width: 100%; object-fit: contain; }
-.scene-body { width: 100%; padding: 75px 17.5px 20px; flex: 1; position: relative; z-index: 50; }
-.content-divider { width: 100%; height: 2px; background: var(--ink); margin-bottom: 15px; }
-.scene-text { font-size: 9px; line-height: 2.2; color: var(--ink); letter-spacing: 0.5px; }
+.menu-btn {
+  cursor: pointer;
+  z-index: 110;
+  transition: transform 0.1s;
+}
+.menu-btn:active { transform: scale(0.92); }
 
-.choices-wrap { position: absolute; left: 17.5px; right: 17.5px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 7.5px; z-index: 200; }
-.choice-btn { border: 2px solid var(--ink); padding: 12.5px 10px; cursor: pointer; background: white; display: flex; align-items: center; }
-.choice-key { font-family: var(--font-mono); font-weight: bold; color: var(--cyan); font-size: 12px; margin-right: 7.5px; }
-.choice-text { font-size: 9px; font-weight: bold; }
+#nav-about {
+  width: 11.049vh; width: 11.049dvh;
+  height: 19.321vh; height: 19.321dvh;
+  left: 82.531vh;  left: 82.531dvh;
+  top: 44.259vh;   top: 44.259dvh;
+}
+#nav-map {
+  width: 10.988vh; width: 10.988dvh;
+  height: 12.593vh; height: 12.593dvh;
+  left: 92.037vh;  left: 92.037dvh;
+  top: 35.185vh;   top: 35.185dvh;
+}
+#nav-start {
+  width: 27.099vh; width: 27.099dvh;
+  height: 25.988vh; height: 25.988dvh;
+  left: 74.506vh;  left: 74.506dvh;
+  top: 8.395vh;    top: 8.395dvh;
+}
 
-.nav-trigger { position: absolute; right: 12.5px; top: 22.5px; z-index: 1001; cursor: pointer; width: 14px; height: 10px; display: flex; flex-direction: column; justify-content: space-between; }
-.dropdown-content { position: absolute; right: 12.5px; top: 37.5px; background: var(--ink); padding: 5px; z-index: 1000; flex-direction: column; gap: 5px; border: 0.5px solid var(--cyan); min-width: 55px; display: none; }
-.dropdown-content div { color: white; font-family: var(--font-mono); font-size: 7px; cursor: pointer; padding: 5px; text-align: center; border-bottom: 0.5px solid #333; }
+.menu-text {
+  color: #E8F027;
+  font-size: 1.975vh; font-size: 1.975dvh;
+  font-family: 'tudy1311', var(--font-display), sans-serif;
+  font-weight: 1000;
+  white-space: nowrap;
+}
+.menu-text-top-l    { left: 28.272vh; left: 28.272dvh; top: 2.16vh; top: 2.16dvh; }
+.menu-text-top-c    { left: 83.889vh; left: 83.889dvh; top: 2.16vh; top: 2.16dvh; }
+.menu-text-top-r    { left: 139.136vh; left: 139.136dvh; top: 2.16vh; top: 2.16dvh; text-align: right; }
+.menu-text-bottom-l { left: 28.272vh; left: 28.272dvh; top: 95.556vh; top: 95.556dvh; }
+.menu-text-bottom-c { left: 83.889vh; left: 83.889dvh; top: 95.556vh; top: 95.556dvh; }
+.menu-text-bottom-r { left: 138.704vh; left: 138.704dvh; top: 95.556vh; top: 95.556dvh; text-align: right; }
 
-#transition-overlay { position: absolute; inset: 0; background: var(--yellow); z-index: 6000; transform: translateX(100%); pointer-events: none; }
+/* ── 地圖層（新版・響應式，做法跟主選單一樣：脫離 #viewport 直式框架）── 
+   設計稿基準：2880 x 1620（16:9）
+   - 螢幕比 16:9 更寬 → 左右露出青色色塊
+   - 螢幕比 16:9 更窄（更瘦長）→ 依高度撐滿、左右等量裁切
+*/
+#map-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  background: var(--cyan);
+  overflow: hidden;
+}
+
+#map-canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  height: 100vh;
+  height: 100dvh;
+  width: 177.778vh;
+  width: 177.778dvh;
+  transform: translate(-50%, -50%);
+  font-family: 'Impact', var(--font-display), sans-serif;
+  touch-action: none; /* 讓拖曳手勢由 JS 接管，不要被瀏覽器當成捲動 */
+}
+
+#map-canvas img { position: absolute; }
+
+/* 背景（波點 + 底線/節點連線）永遠靜止，不會跟著拖曳或縮放 */
+#map-bg-dots, #map-backline {
+  width: 100%; height: 100%; left: 0; top: 0;
+}
+
+/* 🎯 可拖曳、可縮放的內容層（地點縮圖、狀態旗標、地名文字） */
+#map-content {
+  position: absolute;
+  inset: 0;
+  transform: translate(0px, 0px) scale(1);
+  transform-origin: center center;
+  cursor: grab;
+}
+#map-content.dragging { cursor: grabbing; }
+
+/* 節點連接線（跟著內容層一起拖曳/縮放，不屬於靜止背景） */
+#map-nodeline {
+  width: 119.815vh; width: 119.815dvh;
+  height: 52.901vh; height: 52.901dvh;
+  left: 28.025vh;   left: 28.025dvh;
+  top: 25.494vh;    top: 25.494dvh;
+}
+
+/* 地點縮圖 */
+.map-node-photo { position: absolute; }
+#map-b0 { width: 14.383vh; width: 14.383dvh; height: 13.642vh; height: 13.642dvh; left: 149.198vh; left: 149.198dvh; top: 36.543vh; top: 36.543dvh; }
+#map-b6 { width: 14.383vh; width: 14.383dvh; height: 13.642vh; height: 13.642dvh; left: 21.296vh;  left: 21.296dvh;  top: 74.136vh; top: 74.136dvh; }
+#map-b5 { width: 14.383vh; width: 14.383dvh; height: 13.580vh; height: 13.580dvh; left: 12.284vh;  left: 12.284dvh;  top: 21.296vh; top: 21.296dvh; }
+#map-b4 { width: 14.383vh; width: 14.383dvh; height: 13.580vh; height: 13.580dvh; left: 46.728vh;  left: 46.728dvh;  top: 43.210vh; top: 43.210dvh; }
+#map-b3 { width: 15.679vh; width: 15.679dvh; height: 14.815vh; height: 14.815dvh; left: 73.580vh;  left: 73.580dvh;  top: 35.617vh; top: 35.617dvh; }
+#map-b2 { width: 15.679vh; width: 15.679dvh; height: 14.877vh; height: 14.877dvh; left: 100.802vh; left: 100.802dvh; top: 42.346vh; top: 42.346dvh; }
+#map-b1 { width: 15.679vh; width: 15.679dvh; height: 14.815vh; height: 14.815dvh; left: 128.395vh; left: 128.395dvh; top: 35.617vh; top: 35.617dvh; }
+
+/* 狀態旗標＋色塊（單一 svg 含全部 5 組） */
+#map-nodeflags {
+  width: 122.901vh; width: 122.901dvh;
+  height: 59.568vh; height: 59.568dvh;
+  left: 26.574vh;   left: 26.574dvh;
+  top: 24.843vh;    top: 24.843dvh;
+  pointer-events: none; /* 🎯 純裝飾用，讓點擊穿透到底下的 b1/b2/b3 縮圖 */
+}
+
+.map-label {
+  position: absolute;
+  font-family: 'Impact', var(--font-display), sans-serif;
+  font-size: 2.469vh; font-size: 2.469dvh;
+  white-space: nowrap;
+}
+.map-label-school   { left: 149.444vh; left: 149.444dvh; top: 33.519vh; top: 33.519dvh; color: #E5E5E5; }
+.map-label-home     { left: 129.136vh; left: 129.136dvh; top: 33.519vh; top: 33.519dvh; color: #E6F300; }
+.map-label-rust     { left: 101.481vh; left: 101.481dvh; top: 40.185vh; top: 40.185dvh; color: #E6F300; }
+.map-label-dust      { left: 74.074vh;  left: 74.074dvh;  top: 33.457vh; top: 33.457dvh; color: #E6F300; }
+.map-label-withered { left: 46.728vh;  left: 46.728dvh;  top: 37.284vh; top: 37.284dvh; color: #E5E5E5; }
+.map-label-south    { left: 21.235vh;  left: 21.235dvh;  top: 71.111vh; top: 71.111dvh; color: #F5F5F5; }
+.map-label-wcoast   { left: 12.284vh;  left: 12.284dvh;  top: 18.272vh; top: 18.272dvh; color: #E5E5E5; }
+
+/* ============================================================
+   🎯 HUD：固定貼在「真實螢幕」的角落，不隨地圖裁切/拖曳/縮放而移動
+   ============================================================ */
+#map-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* 讓底下地圖仍可拖曳，只有 HUD 內的元件本身可點擊 */
+  font-family: 'Impact', var(--font-display), sans-serif;
+}
+#map-hud > * { pointer-events: auto; }
+
+/* 放大鏡（右下角，貼齊真實螢幕邊緣） */
+#map-magnifier {
+  position: absolute;
+  width: 4.815vh; width: 4.815dvh;
+  height: 5.185vh; height: 5.185dvh;
+  right: 7.870vh; right: 7.870dvh;
+  bottom: 5.093vh; bottom: 5.093dvh;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+#map-magnifier.active { transform: scale(0.85); }
+
+/* 比例尺 + KM 刻度（右下角，貼齊真實螢幕邊緣）
+   用一個固定寬度的容器錨定在螢幕角落，裡面的數字再照著原始設計稿的 left/top 相對定位，
+   這樣才不會因為文字寬度不固定而對不準比例尺 */
+#map-scale-wrap {
+  position: absolute;
+  width: 17.778vh;  width: 17.778dvh;  /* 涵蓋到比例尺右緣（2261→2549px） */
+  height: 5.370vh;  height: 5.370dvh;
+  right: 20.432vh;  right: 20.432dvh;
+  bottom: 6.235vh;  bottom: 6.235dvh;
+}
+#map-scale {
+  position: absolute;
+  width: 17.099vh; width: 17.099dvh;
+  height: 2.346vh; height: 2.346dvh;
+  left: 0.679vh;   left: 0.679dvh;
+  top: 3.025vh;    top: 3.025dvh;
+}
+.map-label-km0    { position: absolute; left: 0vh;      left: 0dvh;      top: 0; color: #E5E5E5; }
+.map-label-km250  { position: absolute; left: 7.284vh;  left: 7.284dvh;  top: 0; color: #E5E5E5; }
+.map-label-km500  { position: absolute; left: 15.741vh; left: 15.741dvh; top: 0; color: #E5E5E5; }
+.map-label-kmunit { position: absolute; left: 18.580vh; left: 18.580dvh; top: 2.654vh; top: 2.654dvh; color: #E5E5E5; }
+
+/* 返回主頁按鈕（右上角，貼齊真實螢幕邊緣）
+   收合狀態：只看得到漢堡圖示（黃色），看不到黃色色塊跟文字
+   點擊後：黃色色塊從圖示右側往左滑出展開，圖示同時滑到色塊左側並變黑
+   再點一次（此時已展開）：才會真的返回主選單 */
+#map-back-btn {
+  position: absolute;
+  top: 5.988vh;    top: 5.988dvh;
+  right: 8.580vh;  right: 8.580dvh;
+  width: 18.951vh; width: 18.951dvh;
+  height: 4.198vh; height: 4.198dvh;
+  cursor: pointer;
+}
+#map-back-bar {
+  position: absolute;
+  top: 0; right: 0; height: 100%;
+  width: 0; /* 收合：黃色色塊不可見 */
+  background: #E6F300;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: width 0.35s ease;
+  z-index: 1;
+}
+#map-back-btn.expanded #map-back-bar { width: 100%; }
+
+#map-back-icon-wrap {
+  position: absolute;
+  top: 0; right: 0; height: 100%;
+  width: 3.827vh; width: 3.827dvh;
+  display: flex; align-items: center; justify-content: center;
+  color: #E6F300; /* svg 用 stroke="currentColor"，靠這裡切換顏色 */
+  transition: right 0.35s ease, color 0.35s ease;
+  z-index: 3;
+}
+#map-back-icon-wrap svg { width: 100%; height: 100%; }
+#map-back-btn.expanded #map-back-icon-wrap {
+  right: calc(100% - 3.827vh);
+  right: calc(100% - 3.827dvh);
+  color: #000;
+}
+
+#map-back-text {
+  position: absolute;
+  top: 0; left: 3.827vh; left: 3.827dvh; right: 0; height: 100%;
+  display: flex; align-items: center;
+  padding-left: 0.7vh; padding-left: 0.7dvh;
+  color: black;
+  font-size: 2.469vh; font-size: 2.469dvh;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.25s ease 0.15s;
+  z-index: 2;
+  pointer-events: none;
+}
+#map-back-btn.expanded #map-back-text { opacity: 1; }
+
+/* ============================================================
+   🎯 About 頁面（作者的話 + 參考資料 + 聯絡資訊，合併成一頁）
+   做法跟地圖/地標頁一樣：position:fixed 脫離 #viewport，vh 縮放
+   ============================================================ */
+#about-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  background: #9D9FAB url('images/bg-dots-desktop.png') center / cover no-repeat;
+  overflow: hidden;
+}
+#about-canvas {
+  position: absolute;
+  top: 50%; left: 50%;
+  height: 100vh; height: 100dvh;
+  width: 177.778vh; width: 177.778dvh;
+  transform: translate(-50%, -50%);
+  font-family: 'Impact', var(--font-display), sans-serif;
+}
+#about-canvas > * { position: absolute; }
+
+/* 🎯 HUD：固定貼在「真實螢幕」的角落，不隨畫布裁切而移動 */
+#about-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: 'Impact', var(--font-display), sans-serif;
+}
+#about-hud > * { position: absolute; pointer-events: auto; }
+
+.about-text {
+  position: absolute;
+  left: 71.481vh; left: 71.481dvh;
+  top: 13.519vh; top: 13.519dvh;
+  width: 35.988vh; width: 35.988dvh;
+  height: 83.519vh; height: 83.519dvh;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 1.235vh; font-size: 1.235dvh;
+  font-weight: 500;
+  line-height: 2.32;
+  letter-spacing: 0.185vh; letter-spacing: 0.185dvh;
+  color: #303030;
+  text-align: center;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+}
+.about-text a { color: #303030; word-break: break-all; }
+
+/* 捲動提示：實心色塊點一下會滑到空心框底部，同時文字往下捲動顯示完整內容 */
+.about-scroll-track {
+  position: absolute;
+  left: 67.531vh; left: 67.531dvh;
+  top: 45.309vh; top: 45.309dvh;
+  width: 1.728vh; width: 1.728dvh;
+  height: 9.012vh; height: 9.012dvh;
+  border: 0.08vh solid var(--yellow); border: 0.08dvh solid var(--yellow);
+  cursor: pointer;
+  z-index: 71;
+}
+.about-scroll-thumb {
+  position: absolute;
+  left: 67.531vh; left: 67.531dvh;
+  top: 45.309vh; top: 45.309dvh;
+  width: 1.728vh; width: 1.728dvh;
+  height: 6.667vh; height: 6.667dvh;
+  background: var(--yellow);
+  transition: top 0.4s ease;
+  pointer-events: none;
+  z-index: 72;
+}
+.about-scroll-thumb.scrolled-pos { top: 47.655vh; top: 47.655dvh; }
+
+/* 返回主頁按鈕（右上角，跟地圖那頁的 BACK TO MENU 是同一顆，尺寸/位置完全相同） */
+#about-back-btn {
+  position: absolute;
+  top: 5.988vh; top: 5.988dvh;
+  right: 8.580vh; right: 8.580dvh;
+  width: 16.235vh; width: 16.235dvh;
+  height: 4.198vh; height: 4.198dvh;
+  cursor: pointer;
+  z-index: 70;
+}
+#about-back-bar { position: absolute; top: 0; right: 0; height: 100%; width: 0; background: var(--yellow); border-radius: 4px; overflow: hidden; transition: width 0.35s ease; z-index: 1; }
+#about-back-btn.expanded #about-back-bar { width: 100%; }
+#about-back-icon-wrap { position: absolute; top: 0; right: 0; height: 100%; width: 3.827vh; width: 3.827dvh; display: flex; align-items: center; justify-content: center; color: var(--yellow); transition: right 0.35s ease, color 0.35s ease; z-index: 3; }
+#about-back-icon-wrap svg { width: 100%; height: 100%; }
+#about-back-btn.expanded #about-back-icon-wrap { right: calc(100% - 3.827vh); right: calc(100% - 3.827dvh); color: #000; }
+#about-back-text {
+  position: absolute; top: 0; left: 3.827vh; left: 3.827dvh; right: 0; height: 100%;
+  display: flex; align-items: center; padding-left: 0.7vh; padding-left: 0.7dvh;
+  color: black; font-size: 2.469vh; font-size: 2.469dvh; white-space: nowrap;
+  opacity: 0; transition: opacity 0.25s ease 0.15s; z-index: 2; pointer-events: none;
+}
+#about-back-btn.expanded #about-back-text { opacity: 1; }
+
+/* ============================================================
+   🎯 地標詳情頁（地圖上 b1/b2/b3 等地點縮圖點進去的畫面）
+   做法跟地圖一樣：position:fixed 脫離 #viewport，vh 縮放，青色填充
+   ============================================================ */
+#landmark-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  background: var(--cyan);
+  overflow: hidden;
+}
+#landmark-canvas {
+  position: absolute;
+  top: 50%; left: 50%;
+  height: 100vh; height: 100dvh;
+  width: 177.778vh; width: 177.778dvh;
+  transform: translate(-50%, -50%);
+  font-family: 'Impact', var(--font-display), sans-serif;
+}
+#landmark-canvas > * { position: absolute; }
+
+/* 🎯 HUD：固定貼在「真實螢幕」的角落，不隨地標頁裁切而移動（跟地圖那頁的 #map-hud 同一套做法） */
+#landmark-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: 'Impact', var(--font-display), sans-serif;
+}
+#landmark-hud > * { position: absolute; pointer-events: auto; }
+
+.lm-bg { width: 100%; height: 100%; left: 0; top: 0; }
+.lm-grid { width: 100%; height: 100%; left: 0; top: 0; }
+
+/* 左下角箭頭指標裝飾（position.svg，取代原本用 CSS 畫的圓圈+線條） */
+.lm-position { width: 10.025vh; width: 10.025dvh; height: 9.834vh; height: 9.834dvh; left: 2.346vh; left: 2.346dvh; top: 89.568vh; top: 89.568dvh; }
+
+/* 右下角比例尺 + 放大鏡（跟地圖那頁完全共用同一套座標） */
+.lm-scale-wrap { width: 17.778vh; width: 17.778dvh; height: 5.370vh; height: 5.370dvh; right: 20.432vh; right: 20.432dvh; bottom: 6.235vh; bottom: 6.235dvh; }
+.lm-scale-wrap img { position: absolute; width: 17.099vh; width: 17.099dvh; height: 2.346vh; height: 2.346dvh; left: 0.679vh; left: 0.679dvh; top: 3.025vh; top: 3.025dvh; }
+.lm-scale-wrap .lm-text { position: absolute; color: #E5E5E5; font-size: 2.469vh; font-size: 2.469dvh; white-space: nowrap; }
+.lm-magnifier { width: 4.773vh; width: 4.773dvh; height: 5.181vh; height: 5.181dvh; right: 7.870vh; right: 7.870dvh; bottom: 5.093vh; bottom: 5.093dvh; cursor: pointer; }
+
+/* 右上角展開式選單（GO BACK + BACK TO MENU 兩個動作） */
+.lm-menu-btn { top: 5.988vh; top: 5.988dvh; right: 8.580vh; right: 8.580dvh; width: 38vh; width: 38dvh; height: 4.198vh; height: 4.198dvh; cursor: pointer; z-index: 70; }
+.lm-menu-bar { position: absolute; top: 0; right: 0; height: 100%; width: 0; background: var(--yellow); border-radius: 4px; overflow: hidden; transition: width 0.35s ease; z-index: 1; }
+.lm-menu-btn.expanded .lm-menu-bar { width: 100%; }
+.lm-menu-icon-wrap { position: absolute; top: 0; right: 0; height: 100%; width: 3.395vh; width: 3.395dvh; display: flex; align-items: center; justify-content: center; color: var(--yellow); transition: right 0.35s ease, color 0.35s ease; z-index: 3; }
+.lm-menu-icon-wrap svg { width: 100%; height: 100%; }
+.lm-menu-btn.expanded .lm-menu-icon-wrap { right: calc(100% - 3.395vh); right: calc(100% - 3.395dvh); color: #000; }
+.lm-menu-text-goback, .lm-menu-text-tomenu {
+  position: absolute; top: 0; height: 100%; display: flex; align-items: center;
+  color: black; font-size: 2.469vh; font-size: 2.469dvh; white-space: nowrap;
+  opacity: 0; transition: opacity 0.25s ease 0.15s; z-index: 2; cursor: pointer;
+}
+.lm-menu-text-goback { left: 5.309vh; left: 5.309dvh; }
+.lm-menu-text-tomenu { left: 20vh; left: 20dvh; }
+.lm-menu-btn.expanded .lm-menu-text-goback, .lm-menu-btn.expanded .lm-menu-text-tomenu { opacity: 1; pointer-events: auto; }
+.lm-menu-text-goback, .lm-menu-text-tomenu { pointer-events: none; }
+
+/* 地標圖釘（landmark.svg，顏色依設定動態帶入） */
+.lm-pin { position: absolute; }
+.lm-pin svg { width: 100%; height: 100%; display: block; }
+
+/* 通用文字/色塊（由 JS 依設定動態產生 inline 樣式） */
+.lm-text { position: absolute; font-family: 'Impact', var(--font-display), sans-serif; white-space: nowrap; }
+.lm-rect { position: absolute; }
+
+/* 🎯 房間場景（HOME / PRINT / POLICE / DINNE，點 landmark 進去的完整互動小遊戲，用 iframe 直接載入） */
+#room-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  background: #000;
+}
+#room-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+
+
+/* ── 遊戲場景（新版・跟主選單/地圖一樣，脫離 #viewport 直式框架，完全響應式）── 
+   設計稿基準：2880 x 1620
+   - 手機(窄長螢幕)：內容集中在畫布中段，兩側裁切掉
+   - 電腦(寬螢幕)：出血裝飾往兩側移、文字框拉寬、名字牌左移，填滿露出的空間
+*/
+#game-root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  background: #F8F7F3;
+  overflow: hidden;
+}
+
+#scene-card {
+  position: absolute;
+  top: 50%; left: 50%;
+  height: 100vh; height: 100dvh;
+  width: 177.778vh; width: 177.778dvh;
+  transform: translate(-50%, -50%);
+  font-family: 'Impact', var(--font-display), sans-serif;
+  overflow: visible;
+}
+#scene-card > * { position: absolute; }
+#scene-card img { position: absolute; }
+
+/* 出血裝飾（左右корner裝飾框）── 手機位置 */
+.story-blood-l { width: 8.21vh; width: 8.21dvh; height: 95.062vh; height: 95.062dvh; left: 66.914vh; left: 66.914dvh; top: 2.284vh; top: 2.284dvh; }
+.story-blood-r { width: 8.21vh; width: 8.21dvh; height: 95.309vh; height: 95.309dvh; left: 102.346vh; left: 102.346dvh; top: 2.13vh; top: 2.13dvh; }
+
+/* 色塊裝飾（頂部+底部各一組） */
+.story-swatches { position: absolute; inset: 0; display: block; }
+.story-swatch { position: absolute; width: 1.643vh; width: 1.643dvh; height: 1.643vh; height: 1.643dvh; }
+.story-swatches-top .story-swatch    { top: 2.184vh; top: 2.184dvh; }
+.story-swatches-bottom .story-swatch { top: 95.802vh; top: 95.802dvh; }
+.story-swatch-1 { left: 85.0vh;    left: 85.0dvh;    background: #0EE5F8; }
+.story-swatch-2 { left: 86.541vh;  left: 86.541dvh;  background: #55ADFF; }
+.story-swatch-3 { left: 88.098vh;  left: 88.098dvh;  background: #FFE014; }
+.story-swatch-4 { left: 89.656vh;  left: 89.656dvh;  background: #303030; }
+.story-swatch-5 { left: 91.196vh;  left: 91.196dvh;  background: #CFCFCF; }
+
+/* 日期牌（斜疊方塊 + DAY/月/日 數字，月小日大，中間斜線隔開） */
+.story-badge-rect { position: absolute; background: #F8F7F3; border: 1px solid black; }
+.story-badge-15 { width: 10.123vh; width: 10.123dvh; height: 10.123vh; height: 10.123dvh; left: 68.607vh; left: 68.607dvh; top: 9.444vh; top: 9.444dvh; background: linear-gradient(180deg, rgba(38.10,135.13,170.41,0.20) 0%, rgba(221.29,217.49,164.37,0.20) 25%, rgba(248,248,246,0.20) 56%), #F8F7F3; }
+.story-badge-13 { width: 10.123vh; width: 10.123dvh; height: 10.123vh; height: 10.123dvh; left: 69.286vh; left: 69.286dvh; top: 9.444vh; top: 9.444dvh; }
+.story-badge-14 { width: 10.101vh; width: 10.101dvh; height: 10.101vh; height: 10.101dvh; left: 70.047vh; left: 70.047dvh; top: 9.012vh; top: 9.012dvh; transform: rotate(4deg); transform-origin: top left; }
+.story-badge-day    { position: absolute; left: 69.753vh; left: 69.753dvh; top: 11.173vh; top: 11.173dvh; font-size: 1.235vh; font-size: 1.235dvh; color: #303030; }
+.story-badge-month  { position: absolute; left: 69.753vh; left: 69.753dvh; top: 12.593vh; top: 12.593dvh; font-size: 1.235vh; font-size: 1.235dvh; color: #303030; }
+.story-badge-line   { position: absolute; left: 72.441vh; left: 72.441dvh; top: 11.481vh; top: 11.481dvh; width: 4.318vh; width: 4.318dvh; height: 0; border-top: 0.09vh solid black; border-top: 0.09dvh solid black; transform: rotate(125deg); transform-origin: top left; }
+.story-badge-daynum { position: absolute; left: 72.963vh; left: 72.963dvh; top: 12.407vh; top: 12.407dvh; font-size: 3.951vh; font-size: 3.951dvh; color: #303030; }
+
+/* 圖片 */
+.story-image-wrap { position: absolute; width: 40.556vh; width: 40.556dvh; height: 30.37vh; height: 30.37dvh; left: 68.607vh; left: 68.607dvh; top: 21.852vh; top: 21.852dvh; background: #303030; border: 1px solid black; box-sizing: border-box; z-index: 100; }
+.story-image-wrap img { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; height: auto; }
+
+/* 人物名字牌（只有該頁文字含「」對話才會顯示，由 JS 切換 display） */
+.story-nameplate { position: absolute; width: 11.111vh; width: 11.111dvh; height: 4.074vh; height: 4.074dvh; left: 69.965vh; left: 69.965dvh; top: 50.062vh; top: 50.062dvh; z-index: 110; }
+.story-nameplate-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.story-nameplate-text { position: absolute; left: 21.5%; top: 50%; transform: translateY(-50%); font-size: 1.235vh; font-size: 1.235dvh; letter-spacing: 0.123vh; letter-spacing: 0.123dvh; color: #303030; white-space: nowrap; }
+
+/* 文字面板（後方斜疊紙 + 主面板 + 內文） */
+.story-panel-behind { position: absolute; width: 40.571vh; width: 40.571dvh; height: 27.606vh; height: 27.606dvh; left: 68.025vh; left: 68.025dvh; top: 55.171vh; top: 55.171dvh; background: #F8F7F3; border: 1px solid black; transform: rotate(-3deg); transform-origin: top left; }
+.story-panel-main   { position: absolute; width: 40.556vh; width: 40.556dvh; height: 25.864vh; height: 25.864dvh; left: 68.58vh;  left: 68.58dvh;  top: 54.219vh; top: 54.219dvh; background: linear-gradient(180deg, rgba(248,248,246,0.15) 57%, rgba(224.35,218.56,137.52,0.15) 75%, rgba(42.86,159.54,185.73,0.15) 94%), #F8F7F3; border: 1px solid black; }
+.story-text  { position: absolute; width: 35.988vh; width: 35.988dvh; left: 70.926vh; left: 70.926dvh; top: 55.309vh; top: 55.309dvh; font-family: 'Noto Sans TC', sans-serif; font-size: 1.235vh; font-size: 1.235dvh; font-weight: 500; line-height: 2.32; letter-spacing: 1.5px; color: #303030; z-index: 10; }
+.cursor { display: inline-block; width: 0.09em; height: 1em; background: #303030; margin-left: 1px; vertical-align: -0.1em; animation: cursor-blink 0.9s steps(1) infinite; }
+@keyframes cursor-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+/* 選項 / TAP繼續提示 —— 下移到文字框區域，不擋圖 */
+.choices-wrap { position: absolute; left: 70.926vh; left: 70.926dvh; width: 35.988vh; width: 35.988dvh; top: 58vh; top: 58dvh; display: flex; flex-direction: column; gap: 0.9vh; gap: 0.9dvh; z-index: 200; }
+.choice-btn { border: 1.5px solid #303030; padding: 1.4vh 1.1vh; padding: 1.4dvh 1.1dvh; cursor: pointer; background: #F8F7F3; display: flex; align-items: center; }
+.choice-key { font-family: 'Impact', var(--font-display), sans-serif; font-weight: bold; color: #0EE5F8; font-size: 1.4vh; font-size: 1.4dvh; margin-right: 0.9vh; margin-right: 0.9dvh; }
+.choice-text { font-family: 'Impact', var(--font-display), sans-serif; font-size: 1.235vh; font-size: 1.235dvh; font-weight: bold; color: #303030; }
+.tap-hint { position: absolute; left: 70.926vh; left: 70.926dvh; width: 35.988vh; width: 35.988dvh; top: 76vh; top: 76dvh; padding: 0; color: #303030; opacity: 0.5; text-align: center; font-family: var(--font-mono); font-size: 1vh; font-size: 1dvh; letter-spacing: 1px; text-transform: uppercase; }
+
+/* 底部控制列（Group_9.svg + BACK/AUTO/SKIP） */
+.story-bottombar { position: absolute; width: 41.543vh; width: 41.543dvh; height: 6.173vh; height: 6.173dvh; left: 67.809vh; left: 67.809dvh; top: 84.475vh; top: 84.475dvh; z-index: 60; }
+.story-bottombar img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bb-btn { position: absolute; top: 1.037vh; top: 1.037dvh; width: 4.444vh; width: 4.444dvh; height: 2.222vh; height: 2.222dvh; text-align: center; color: #303030; font-size: 1.235vh; font-size: 1.235dvh; letter-spacing: 0.123vh; letter-spacing: 0.123dvh; cursor: pointer; z-index: 61; }
+.bb-back { left: 8.981vh; left: 8.981dvh; }
+.bb-auto { left: 18.734vh; left: 18.734dvh; }
+.bb-auto.active { color: #0EE5F8; }
+.bb-skip { left: 29.043vh; left: 29.043dvh; }
+.bb-skip.active { color: #0EE5F8; }
+
+/* 右上角展開式選單按鈕（跟地圖那顆同一套互動邏輯，這裡改用青色） */
+.story-menu-btn { position: absolute; top: 9.198vh; top: 9.198dvh; left: 91.235vh; left: 91.235dvh; width: 16.235vh; width: 16.235dvh; height: 3.395vh; height: 3.395dvh; cursor: pointer; z-index: 70; }
+.story-menu-bar { position: absolute; top: 0; right: 0; height: 100%; width: 0; background: var(--cyan); border-radius: 4px; overflow: hidden; transition: width 0.35s ease; z-index: 1; }
+.story-menu-btn.expanded .story-menu-bar { width: 100%; }
+.story-menu-icon-wrap { position: absolute; top: 0; right: 0; height: 100%; width: 2.531vh; width: 2.531dvh; display: flex; align-items: center; justify-content: center; color: #303030; transition: right 0.35s ease; z-index: 3; }
+.story-menu-icon-wrap svg { width: 100%; height: 100%; }
+.story-menu-btn.expanded .story-menu-icon-wrap { right: calc(100% - 2.531vh); right: calc(100% - 2.531dvh); }
+.story-menu-text { position: absolute; top: 0; left: 2.531vh; left: 2.531dvh; right: 0; height: 100%; display: flex; align-items: center; padding-left: 0.6vh; padding-left: 0.6dvh; color: black; font-size: 1.235vh; font-size: 1.235dvh; white-space: nowrap; opacity: 0; transition: opacity 0.25s ease 0.15s; z-index: 2; pointer-events: none; }
+.story-menu-btn.expanded .story-menu-text { opacity: 1; }
+
+/* ============================================================
+   🖥️ 電腦(寬螢幕)版面：出血裝飾外移、文字框拉寬、名字牌左移
+   ============================================================ */
+@media (min-aspect-ratio: 16/9) {
+  .story-blood-l { left: 20vh; left: 20dvh; }
+  .story-blood-r { left: 149.568vh; left: 149.568dvh; }
+}
+
+#transition-overlay { position: fixed; inset: 0; background: var(--yellow); z-index: 10500; transform: translateX(100%); pointer-events: none; }
 .slide-active { animation: slide-to 1.2s cubic-bezier(0.65, 0, 0.35, 1) forwards; }
 @keyframes slide-to { 0% {transform: translateX(100%);} 45%, 55% {transform: translateX(0%);} 100% {transform: translateX(-100%);} }
 
 /* ── 🎨 Art Board 樣式 ── */
-#art-board-layer { position: absolute; inset: 0; z-index: 8000; display: none; background: #000; }
+#art-board-layer { position: absolute; inset: 0; z-index: 8000; display: none; background: var(--cyan) url('images/bg-dots-desktop.png') center / cover no-repeat; }
 #art-full-bg { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
 
 #art-canvas-container {
@@ -206,7 +726,7 @@ body { background: #111; display: flex; align-items: center; justify-content: ce
 #art-text-confirm { width: 100%; padding: 6px; background: var(--cyan); border: none; font-family: var(--font-mono); font-weight: bold; cursor: pointer; }
 
 /* ── 提示文字樣式 ── */
-.tap-hint, .full-image-hint {
+.full-image-hint {
   color: white; 
   font-family: var(--font-mono) !important; 
   font-size: 6.5px !important; 
@@ -216,11 +736,10 @@ body { background: #111; display: flex; align-items: center; justify-content: ce
   text-transform: uppercase;
   text-align: center;
 }
-.tap-hint { padding: 20px; color: var(--ink); opacity: 0.5; }
 .full-image-hint { position: absolute; bottom: 30px; left: 0; right: 0; }
 
 /* ── 🏆 最終展示層與上傳介面 ── */
-#final-result-layer { position: absolute; inset: 0; z-index: 9500; display: none; background: #000; }
+#final-result-layer { position: absolute; inset: 0; z-index: 9500; display: none; background: var(--cyan) url('images/bg-dots-desktop.png') center / cover no-repeat; }
 #final-result-bg { width: 100%; height: 100%; object-fit: contain; }
 
 #final-result-artwork-wrap {
@@ -235,7 +754,7 @@ body { background: #111; display: flex; align-items: center; justify-content: ce
 }
 
 /* ── 📤 上傳介面 ── */
-#upload-board-layer { position: absolute; inset: 0; z-index: 8000; display: none; background: #000; }
+#upload-board-layer { position: absolute; inset: 0; z-index: 8000; display: none; background: var(--cyan); }
 #upload-bg { width: 100%; height: 100%; object-fit: contain; }
 #upload-trigger-btn {
   position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); width: 34%; cursor: pointer; background: transparent; border: none; outline: none;
@@ -252,7 +771,7 @@ body { background: #111; display: flex; align-items: center; justify-content: ce
 #news-layer-new1 {
   background-color: #f4f4f4; /* 報紙感底色 */
   color: #1a1a1a;
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 9999;
   display: flex;
