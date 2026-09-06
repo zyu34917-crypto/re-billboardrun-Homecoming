@@ -11,10 +11,85 @@
   <div id="viewport">
     <!-- ✅ menu 在 scaled-root 外面，保持原比例 -->
     <div id="menu-layer" style="display: none;">
-      <img src="images/menu_bg.png" class="menu-bg">
-      <img src="images/btn_start.png" id="nav-start" class="menu-btn">
-      <img src="images/btn_about.png" id="nav-about" class="menu-btn">
-      <img src="images/btn_refs.png" id="nav-refs" class="menu-btn">
+      <div id="menu-canvas">
+        <img id="menu-back" src="images/menu/menu-back.png" alt="">
+        <img id="menu-hero" src="images/menu/menu-hero.png" alt="">
+        <img id="nav-about" class="menu-btn" src="images/menu/menu-button-about.png" alt="">
+        <img id="nav-map" class="menu-btn" src="images/menu/menu-button-map.png" alt="">
+        <img id="nav-start" class="menu-btn" src="images/menu/menu-button-start.png" alt="">
+
+        <div class="menu-text menu-text-top-l">form follows function.</div>
+        <div class="menu-text menu-text-top-c">congratulations</div>
+        <div class="menu-text menu-text-top-r">print date: 2062</div>
+        <div class="menu-text menu-text-bottom-l">timestamp: 2602-06-01</div>
+        <div class="menu-text menu-text-bottom-c">congratulations</div>
+        <div class="menu-text menu-text-bottom-r">by __leisure1224</div>
+      </div>
+    </div>
+
+    <div id="map-layer" style="display: none;">
+      <div id="map-canvas">
+        <img id="map-bg-dots" src="images/bg-dots-desktop.png" alt="">
+        <img id="map-backline" src="images/map/gridline.svg" alt="">
+
+        <div id="map-content">
+          <img id="map-nodeline" src="images/map/nodeline.svg" alt="">
+
+          <img id="map-b0" class="map-node-photo" src="images/map/map-b0.png" alt="">
+          <img id="map-b1" class="map-node-photo" src="images/map/map-b1.png" alt="">
+          <img id="map-b2" class="map-node-photo" src="images/map/map-b2.png" alt="">
+          <img id="map-b3" class="map-node-photo" src="images/map/map-b3.png" alt="">
+          <img id="map-b4" class="map-node-photo" src="images/map/map-b4.png" alt="">
+          <img id="map-b5" class="map-node-photo" src="images/map/map-b5.png" alt="">
+          <img id="map-b6" class="map-node-photo" src="images/map/map-b6.png" alt="">
+
+          <img id="map-nodeflags" src="images/map/mapnode.svg" alt="">
+
+          <div class="map-label map-label-school">SCHOOL</div>
+          <div class="map-label map-label-home">HOME</div>
+          <div class="map-label map-label-rust">RUST HIGHWAY</div>
+          <div class="map-label map-label-dust">DUST</div>
+          <div class="map-label map-label-withered">WITHERED<br>HIGHWAY</div>
+          <div class="map-label map-label-south">SOUTH BAY...</div>
+          <div class="map-label map-label-wcoast">W.COAST...</div>
+        </div>
+      </div>
+
+      <!-- 🎯 HUD：固定在真實螢幕角落，不受地圖裁切/拖曳/縮放影響 -->
+      <div id="map-hud">
+        <div id="map-back-btn">
+          <div id="map-back-bar"></div>
+          <div id="map-back-icon-wrap">
+            <svg viewBox="0 0 62 67" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3.50003 3.5H58.5M3.5 34.3572H58.5M3.5 63.5H58.5" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div id="map-back-text">BACK TO MENU</div>
+        </div>
+
+        <img id="map-magnifier" src="images/map/magnifier.svg" alt="">
+        <div id="map-scale-wrap">
+          <img id="map-scale" src="images/map/scale.svg" alt="">
+          <div class="map-label map-label-km0">0</div>
+          <div class="map-label map-label-km250">250</div>
+          <div class="map-label map-label-km500">500</div>
+          <div class="map-label map-label-kmunit">KM</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="landmark-layer" style="display: none;">
+      <div id="landmark-canvas"></div>
+    <div id="landmark-hud"></div>
+    </div>
+
+    <div id="about-layer" style="display: none;">
+      <div id="about-canvas"></div>
+      <div id="about-hud"></div>
+    </div>
+
+    <div id="room-layer" style="display: none;">
+      <iframe id="room-iframe" src="" title="room"></iframe>
     </div>
 
     <!-- ✅ 其他所有層縮小 50% -->
@@ -80,15 +155,15 @@
       </div>
     </div>
 
- <div id="upload-board-layer" style="display:none; position:absolute; inset:0; z-index:8000; background:#000;">
-  <img src="images/final_ud_bg.png" style="width:100%; height:100%; object-fit:contain;">
+ <div id="upload-board-layer" style="display:none; position:absolute; inset:0; z-index:8000;">
+  <img src="images/bg-dots-desktop.png" style="width:100%; height:100%; object-fit:cover;">
   
   <img src="images/final_ud_btn.png" id="upload-trigger-btn">
   
   <div class="upload-hint">*推薦圖片寬高4:3</div>
 </div>
 
-    <div id="final-result-layer" style="display:none; position:absolute; inset:0; z-index:9500; background:#000;">
+    <div id="final-result-layer" style="display:none; position:absolute; inset:0; z-index:9500;">
       <img id="final-result-bg" src="" style="width:100%; height:100%; object-fit:contain; position:absolute;">
       <div id="final-result-artwork-wrap">
         <img id="final-result-artwork-img" src="">
