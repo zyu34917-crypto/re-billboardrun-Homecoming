@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Printing Scene</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ width:100%; height:100%; background:#000; overflow:hidden; }
+  body{ display:flex; align-items:center; justify-content:center; }
+
+  .scene{ position:relative; overflow:hidden; background:#000; user-select:none; flex:0 0 auto; }
+
+  #back{ position:absolute; inset:0; z-index:1; }
+  #back img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  .obj{ position:absolute; transform:translate(-50%,-50%); transform-origin:center; pointer-events:none; }
+  .obj img{ height:100%; width:auto; display:block; }
+
+  /* 果凍彈跳：物件移動(left 改變)時用回彈曲線；首次排版後才開啟 */
+  .animate .obj{ transition: left .5s cubic-bezier(.34,1.62,.5,1); }
+
+  /* 圖層順序（低→高）：machine < pc < front-table < cd < beer < vinyl < knot < table */
+  #machine{    z-index:2; }
+  #pc{         z-index:3; }
+  #cd{         transform:none; transition:none !important; z-index:5; }
+  #beer{       z-index:6; }
+  #vinyl{      z-index:7; pointer-events:auto; cursor:pointer; }
+  #knot{       z-index:8; pointer-events:auto; cursor:pointer; }
+  #table{      z-index:9; }
+
+  /* front-table：固定不縮放、鎖左下角、視窗變窄被裁掉、不參與彈跳 */
+  #fronttable{ transform:none; transition:none !important; z-index:4; top:auto; bottom:0; }
+
+  @keyframes pop {
+    0%   { transform: translate(-50%,-50%) scale(1); }
+    40%  { transform: translate(-50%,-50%) scale(1.14); }
+    100% { transform: translate(-50%,-50%) scale(1); }
+  }
+  .pop{ animation: pop .28s ease; }
+
+  #exit{ position:fixed; top:0; right:0; z-index:100; cursor:pointer; min-width:40px; }
+  #exit img{ height:100%; width:auto; display:block; }
+
+  #map, #map2{ position:absolute; z-index:9999; opacity:0; transition:opacity .15s ease; pointer-events:none; transform:none; }
+  #map img, #map2 img{ height:100%; width:auto; display:block; }
+  #map.show, #map2.show{ opacity:1; pointer-events:auto; }
+  .map-close{ position:absolute; right:6%; top:4%; width:12%; height:8%; cursor:pointer; }
+  /* 🔧 圖片不能被拖曳抓起來 */
+  img, svg { -webkit-user-drag: none; -khtml-user-drag: none; -moz-user-drag: none; -o-user-drag: none; user-drag: none; }
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+  <div id="back"><img src="assets/Printing-back.png" alt=""></div>
+
+  <div class="obj" id="machine"><img src="assets/Printing-machine.png" alt=""></div>
+  <div class="obj" id="pc"><img src="assets/Printing-pc.png" alt=""></div>
+  <div class="obj" id="cd"><img src="assets/Printing-cd.png" alt=""></div>
+  <div class="obj" id="beer"><img src="assets/Printing-beer.png" alt=""></div>
+  <div class="obj" id="vinyl"><img src="assets/Printing-vinyl.png" alt=""></div>
+  <div class="obj" id="knot"><img src="assets/Printing-knot.png" alt=""></div>
+  <div class="obj" id="table"><img src="assets/Printing-table.png" alt=""></div>
+
+  <div class="obj" id="fronttable"><img src="assets/Printing-front-table.png" alt=""></div>
+
+  <div id="map"><img src="assets/Printing-map.png" alt=""><div class="map-close" id="mapClose"></div></div>
+  <div id="map2"><img src="assets/Printing-map-2.png" alt=""><div class="map-close" id="map2Close"></div></div>
+</div>
+
+<div id="exit"><img src="assets/Printing-exit.png" alt=""></div>
+
+<script>
+  // ===== 參數 =====
+  const CANVAS_W = 2880, CANVAS_H = 1620;
+  const A_WIDE = CANVAS_W / CANVAS_H;
+  const A_MIN  = 0.45;
+
+  // 自由物件(會縮放)：nat=[原位中心x%, 中心y%(不變)], tgtx=最窄時中心x%, h=高度%
+  const OBJS = [
+    { id:'pc',      nat:[29.13,46.05], tgtx:48,    h:30.62   },   // 位移後更往右
+    { id:'machine', nat:[14.79,39.11], tgtx:25,    h:34.5062 },
+    { id:'beer',    nat:[28.85,86.14], tgtx:28.75, h:24.5062 },
+    { id:'vinyl',   nat:[43.07,50.31], tgtx:25,    h:32.3457 },
+    { id:'knot',    nat:[68.66,72.84], tgtx:72,    h:51.9753 },
+    { id:'table',   nat:[55.21,84.99], tgtx:40,    h:30.1235 },
+  ];
+  const EXIT_H = 6.1728;
+
+  // cd(唱盤)：鎖房間座標，跟 front-table 一樣固定不動、隨房間裁切
+  const CD = { leftFrac:0.1771, topFrac:0.5401, hFrac:0.2494 };
+  let cdHeightPx = null;
+
+  // front-table：固定不縮放、鎖房間最左、隨房間水平位移裁切
+  const FT = { leftFrac:0.0, hFrac:0.52037 };
+  let ftHeightPx = null;
+
+  const scene = document.getElementById('scene');
+  const mapEl = document.getElementById('map');
+  const map2El = document.getElementById('map2');
+  const exitEl = document.getElementById('exit');
+  const ftEl = document.getElementById('fronttable');
+  const cdEl = document.getElementById('cd');
+  let curSceneW = 0, curSceneH = 0;
+
+  const lerp = (a,b,t)=> a + (b-a)*t;
+
+  function layout(){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const sceneW = Math.min(vw, CANVAS_W);
+    const sceneH = Math.min(vh, CANVAS_H);
+    curSceneW = sceneW; curSceneH = sceneH;
+    scene.style.width  = sceneW + 'px';
+    scene.style.height = sceneH + 'px';
+
+    const A = vw / vh;
+    const t = Math.min(1, Math.max(0, (A_WIDE - A) / (A_WIDE - A_MIN)));
+
+    // 房間 cover 座標（背景/自由物件/cd/front-table 全部共用 → 變扁只裁切不縮小）
+    const coverScale = Math.max(sceneW/CANVAS_W, sceneH/CANVAS_H);
+    const bgW = CANVAS_W * coverScale, bgH = CANVAS_H * coverScale;
+    const offX = (sceneW - bgW) / 2, offY = (sceneH - bgH) / 2;
+
+    // 自由物件：cover 縮放(變扁不縮小) + 只有 X 位移，Y 固定
+    for (const o of OBJS){
+      const el = document.getElementById(o.id);
+      const cx = lerp(o.nat[0], o.tgtx, t);
+      el.style.height = (o.h/100 * bgH) + 'px';
+      el.style.left   = (cx/100 * sceneW) + 'px';
+      el.style.top    = (offY + o.nat[1]/100 * bgH) + 'px';
+    }
+
+    // cd：鎖房間座標、固定不縮放、隨房間裁切
+    if (cdHeightPx === null) cdHeightPx = CD.hFrac * bgH;
+    cdEl.style.height = cdHeightPx + 'px';
+    cdEl.style.left   = (offX + CD.leftFrac * bgW) + 'px';
+    cdEl.style.top    = (offY + CD.topFrac  * bgH) + 'px';
+
+    // front-table：尺寸固定、鎖房間最左、變窄往左滑出被裁掉
+    if (ftHeightPx === null) ftHeightPx = FT.hFrac * bgH;
+    ftEl.style.height = ftHeightPx + 'px';
+    ftEl.style.left   = (offX + FT.leftFrac * bgW) + 'px';
+
+    exitEl.style.height = (EXIT_H/100 * sceneH) + 'px';
+    mapEl.classList.remove('show');
+    map2El.classList.remove('show');
+  }
+  window.addEventListener('resize', layout);
+  layout();
+  requestAnimationFrame(()=> requestAnimationFrame(()=> scene.classList.add('animate')));
+
+  // ===== 面板 =====
+  const vinyl = document.getElementById('vinyl');
+  const knot  = document.getElementById('knot');
+  const mapImg = mapEl.querySelector('img');
+
+  function showMapBeside(charEl, panelEl, side){
+    const img = panelEl.querySelector('img');
+    const cImg = charEl.querySelector('img');
+    const hpx = parseFloat(charEl.style.height);
+    const wpx = hpx * (cImg.naturalWidth / cImg.naturalHeight);
+    const cx  = parseFloat(charEl.style.left);   // 角色中心 x
+    const cy  = parseFloat(charEl.style.top);    // 角色中心 y
+    const mapH = curSceneH * 0.30;
+    panelEl.style.height = mapH + 'px';
+    const mapW = mapH * (img.naturalWidth / img.naturalHeight);
+    const gap = wpx * 0.12;   // 跟 vinyl 那組一樣的間距
+    let left = (side === 'left')
+      ? (cx - wpx/2 - gap - mapW)   // 面板放角色左邊
+      : (cx + wpx/2 + gap);         // 面板放角色右邊
+    let top  = cy - mapH/2;
+    left = Math.max(4, Math.min(left, curSceneW - mapW - 4));
+    top  = Math.max(4, Math.min(top, curSceneH - mapH - 4));
+    panelEl.style.left = left + 'px';
+    panelEl.style.top  = top + 'px';
+    panelEl.classList.add('show');
+  }
+
+  function pop(el){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+  [vinyl, knot].forEach(el=> el.addEventListener('animationend', ()=> el.classList.remove('pop')));
+
+  vinyl.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    pop(vinyl);
+    map2El.classList.remove('show');
+    if (mapEl.classList.contains('show')) mapEl.classList.remove('show');
+    else showMapBeside(vinyl, mapEl, 'right');
+  });
+  knot.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    pop(knot);
+    mapEl.classList.remove('show');
+    if (map2El.classList.contains('show')) map2El.classList.remove('show');
+    else showMapBeside(knot, map2El, 'left');
+  });
+  document.getElementById('mapClose').addEventListener('click', (e)=>{ e.stopPropagation(); mapEl.classList.remove('show'); });
+  document.getElementById('map2Close').addEventListener('click', (e)=>{ e.stopPropagation(); map2El.classList.remove('show'); });
+  scene.addEventListener('click', ()=>{ mapEl.classList.remove('show'); map2El.classList.remove('show'); });
+
+  // 🎯 點右上角 exit 通知外層頁面（主 app）關閉這個場景、回到上一頁
+  document.getElementById('exit').addEventListener('click', () => {
+    window.parent.postMessage({ type: 'exitRoom' }, '*');
+  });
+
+  // 🔧 圖片不能被原生拖曳抓起來（跨瀏覽器保險）
+  document.addEventListener('dragstart', (e) => { if (e.target.tagName === 'IMG') e.preventDefault(); });
+</script>
+
+</body>
+</html>

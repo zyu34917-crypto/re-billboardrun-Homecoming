@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home Scene</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ width:100%; height:100%; background:#000; overflow:hidden; }
+  body{ display:flex; align-items:center; justify-content:center; }
+
+  .scene{ position:relative; overflow:hidden; background:#000; user-select:none; width:100%; height:100%; }
+
+  #back{ position:absolute; inset:0; z-index:1; }
+  #back img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  .obj{ position:absolute; transform:translate(-50%,-50%); transform-origin:center; pointer-events:none; }
+  .obj img{ height:100%; width:auto; display:block; }
+
+  /* 果凍彈跳：物件移動時回彈；首次排版後才開啟 */
+  .animate .obj{ transition: left .5s cubic-bezier(.34,1.62,.5,1); }
+
+  /* 圖層(低→高) */
+  #window{  z-index:2; }
+  #mirror{  z-index:3; }
+  #bed{     z-index:4; }
+  #rack{    z-index:5; }
+  #desk{    z-index:6; transform:none; }
+  #hero{    z-index:7; pointer-events:auto; cursor:pointer; }
+  #bag{     z-index:8; }
+
+  @keyframes pop {
+    0%   { transform: translate(-50%,-50%) scale(1); }
+    40%  { transform: translate(-50%,-50%) scale(1.12); }
+    100% { transform: translate(-50%,-50%) scale(1); }
+  }
+  .pop{ animation: pop .28s ease; }
+
+  #exit{ position:fixed; top:0; right:0; z-index:100; cursor:pointer; min-width:40px; }
+  #exit img{ height:100%; width:auto; display:block; }
+
+  #map{ position:absolute; z-index:9999; opacity:0; transition:opacity .15s ease; pointer-events:none; transform:none; }
+  #map img{ height:100%; width:auto; display:block; }
+  #map.show{ opacity:1; pointer-events:auto; }
+  .map-close{ position:absolute; right:6%; top:4%; width:12%; height:8%; cursor:pointer; }
+  /* 🔧 圖片不能被拖曳抓起來 */
+  img, svg { -webkit-user-drag: none; -khtml-user-drag: none; -moz-user-drag: none; -o-user-drag: none; user-drag: none; }
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+  <div id="back"><img src="assets/home-back.png" alt=""></div>
+
+  <div class="obj" id="window"><img src="assets/home-window.png" alt=""></div>
+  <div class="obj" id="mirror"><img src="assets/home-mirror.png" alt=""></div>
+  <div class="obj" id="bed"><img src="assets/home-bed.png" alt=""></div>
+  <div class="obj" id="rack"><img src="assets/home-rack.png" alt=""></div>
+  <div class="obj" id="desk"><img src="assets/home-desk.png" alt=""></div>
+  <div class="obj" id="hero"><img src="assets/home-hero.png" alt=""></div>
+  <div class="obj" id="bag"><img src="assets/home-bag.png" alt=""></div>
+
+  <div id="map"><img src="assets/home-map.png" alt=""><div class="map-close" id="mapClose"></div></div>
+</div>
+
+<div id="exit"><img src="assets/home-exit.png" alt=""></div>
+
+<script>
+  const CANVAS_W = 2880, CANVAS_H = 1620;
+  const A_WIDE = CANVAS_W / CANVAS_H;   // 16:9 (位移=0)
+  const A_MIN  = 0.46;                  // i17 直向 (位移=最大)
+
+  // nat=[原位中心x%,y%], tgt=[i17中心x%,y%], h=高度%
+  // nat=[原位中心x%, 中心y%(永遠不動)], tgtx=i17時的中心x%
+  const OBJS = [
+    { id:'window', nat:[19.41,20.59], tgtx:-30, h:37.10 },
+    { id:'mirror', nat:[44.00,32.50], tgtx:44,  h:32.47 },
+    { id:'bed',    nat:[16.88,42.22], tgtx:-33, h:30.99 },
+    { id:'rack',   nat:[79.34,77.28], tgtx:96,  h:45.43 },
+    { id:'hero',   nat:[50.59,41.39], tgtx:47,  h:32.65 },
+    { id:'bag',    nat:[55.64,87.28], tgtx:50,  h:17.41 },
+  ];
+  const EXIT_H = 6.17;
+  // desk：用「左緣」定位。位移前(t=0)左緣貼齊視窗左邊(0)；i17(t=1)左緣往左滑
+  const DESK = { topFrac:64.44, hFrac:35.56, leftEdge0:0, leftEdge1:-38 };
+
+  const scene = document.getElementById('scene');
+  const mapEl = document.getElementById('map');
+  const exitEl = document.getElementById('exit');
+  let curSceneW=0, curSceneH=0;
+  const lerp=(a,b,t)=>a+(b-a)*t;
+
+  function layout(){
+    const vw=window.innerWidth, vh=window.innerHeight;
+    curSceneW=vw; curSceneH=vh;
+
+    // cover 座標：跟背景 object-fit:cover 同一縮放 → 變扁/變窄都只裁切、不縮小不變形
+    const coverScale=Math.max(vw/CANVAS_W, vh/CANVAS_H);
+    const bgW=CANVAS_W*coverScale, bgH=CANVAS_H*coverScale;
+    const offX=(vw-bgW)/2, offY=(vh-bgH)/2;
+
+    const A=vw/vh;
+    const t=Math.min(1,Math.max(0,(A_WIDE-A)/(A_WIDE-A_MIN)));
+
+    for(const o of OBJS){
+      const el=document.getElementById(o.id);
+      const cx=lerp(o.nat[0],o.tgtx,t);   // 只有 X 內插
+      const cy=o.nat[1];                   // Y 永遠固定
+      el.style.height=(o.h/100*bgH)+'px';
+      el.style.left=(cx/100*vw)+'px';
+      el.style.top =(offY+cy/100*bgH)+'px';
+    }
+
+    // desk：左緣貼齊視窗左邊(cover 縮放，變扁不縮小)；只有接近直向才往左位移
+    const deskEl=document.getElementById('desk');
+    const deskT=Math.min(1,Math.max(0,(1.0 - A)/(1.0 - A_MIN)));
+    const deskLeft=lerp(DESK.leftEdge0,DESK.leftEdge1,deskT);
+    deskEl.style.height=(DESK.hFrac/100*bgH)+'px';
+    deskEl.style.left=(deskLeft/100*vw)+'px';
+    deskEl.style.top =(offY+DESK.topFrac/100*bgH)+'px';
+
+    exitEl.style.height=(EXIT_H/100*vh)+'px';
+    mapEl.classList.remove('show');
+  }
+  window.addEventListener('resize',layout);
+  layout();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>scene.classList.add('animate')));
+
+  // ===== 面板：出現在 hero 下方 =====
+  const hero=document.getElementById('hero');
+  const mapImg=mapEl.querySelector('img');
+
+  function showMapBelowHero(){
+    const hImg=hero.querySelector('img');
+    const hpx=parseFloat(hero.style.height);
+    const cx=parseFloat(hero.style.left);   // hero 中心 x
+    const cy=parseFloat(hero.style.top);     // hero 中心 y
+    const mapH=curSceneH*0.34;
+    mapEl.style.height=mapH+'px';
+    const mapW=mapH*(mapImg.naturalWidth/mapImg.naturalHeight);
+    const gap=hpx*0.06;
+    let left=cx-mapW/2;                       // 水平置中於 hero
+    let top =cy+hpx/2+gap;                    // hero 底部下方
+    left=Math.max(4,Math.min(left,curSceneW-mapW-4));
+    top =Math.max(4,Math.min(top ,curSceneH-mapH-4));
+    mapEl.style.left=left+'px';
+    mapEl.style.top =top+'px';
+    mapEl.classList.add('show');
+  }
+
+  function pop(el){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+  hero.addEventListener('animationend',()=>hero.classList.remove('pop'));
+
+  hero.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    pop(hero);
+    if(mapEl.classList.contains('show')) mapEl.classList.remove('show');
+    else showMapBelowHero();
+  });
+  document.getElementById('mapClose').addEventListener('click',(e)=>{ e.stopPropagation(); mapEl.classList.remove('show'); });
+  scene.addEventListener('click',()=>mapEl.classList.remove('show'));
+
+  // 🎯 點右上角 exit 通知外層頁面（主 app）關閉這個場景、回到上一頁
+  document.getElementById('exit').addEventListener('click', () => {
+    window.parent.postMessage({ type: 'exitRoom' }, '*');
+  });
+
+  // 🔧 圖片不能被原生拖曳抓起來（跨瀏覽器保險）
+  document.addEventListener('dragstart', (e) => { if (e.target.tagName === 'IMG') e.preventDefault(); });
+</script>
+
+</body>
+</html>

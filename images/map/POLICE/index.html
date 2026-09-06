@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Police Scene</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ width:100%; height:100%; background:#000; overflow:hidden; }
+  body{ display:flex; align-items:center; justify-content:center; }
+
+  .scene{ position:relative; overflow:hidden; background:#000; user-select:none; width:100%; height:100%; }
+
+  #back{ position:absolute; inset:0; z-index:1; }
+  #back img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  /* 物件：中心定位、用 cover 座標(跟背景同步) → 變扁變窄都只裁切不變形 */
+  .obj{ position:absolute; transform:translate(-50%,-50%); transform-origin:center; pointer-events:none; }
+  .obj img{ height:100%; width:auto; display:block; }
+  .animate .obj{ transition: left .5s cubic-bezier(.34,1.62,.5,1); }
+
+  #table{  z-index:2; }
+  #tissue{ z-index:3; }
+  #desk{   z-index:4; }
+  #tassel{ z-index:5; pointer-events:auto; cursor:pointer; }
+
+  @keyframes pop {
+    0%   { transform: translate(-50%,-50%) scale(1); }
+    40%  { transform: translate(-50%,-50%) scale(1.12); }
+    100% { transform: translate(-50%,-50%) scale(1); }
+  }
+  .pop{ animation: pop .28s ease; }
+
+  #exit{ position:fixed; top:0; right:0; z-index:100; cursor:pointer; min-width:40px; }
+  #exit img{ height:100%; width:auto; display:block; }
+
+  #map{ position:absolute; z-index:9999; opacity:0; transition:opacity .15s ease; pointer-events:none; transform:none; }
+  #map img{ height:100%; width:auto; display:block; }
+  #map.show{ opacity:1; pointer-events:auto; }
+  .map-close{ position:absolute; right:6%; top:4%; width:12%; height:8%; cursor:pointer; }
+  /* 🔧 圖片不能被拖曳抓起來 */
+  img, svg { -webkit-user-drag: none; -khtml-user-drag: none; -moz-user-drag: none; -o-user-drag: none; user-drag: none; }
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+  <div id="back"><img src="assets/police-back.png" alt=""></div>
+
+  <div class="obj" id="table"><img src="assets/police-table.png" alt=""></div>
+  <div class="obj" id="desk"><img src="assets/police-desk.png" alt=""></div>
+  <div class="obj" id="tissue"><img src="assets/police-tissue.png" alt=""></div>
+  <div class="obj" id="tassel"><img src="assets/police-tassel.png" alt=""></div>
+
+  <div id="map"><img src="assets/police-map.png" alt=""><div class="map-close" id="mapClose"></div></div>
+</div>
+
+<div id="exit"><img src="assets/police-exit.png" alt=""></div>
+
+<script>
+  const CANVAS_W=2880, CANVAS_H=1620;
+  const A_WIDE=CANVAS_W/CANVAS_H;   // 16:9 (位移=0)
+  const A_MIN=0.46;                 // i17 直向 (位移最大；之後有 i17 圖再校準)
+
+  // nat=[原位中心x%, 中心y%(不變)], tgtx=最窄時中心x%, h=高度%(相對 1620 畫布)
+  // nat=[原位中心x%, 中心y%(永遠不動)], tgtx=最窄時中心x%
+  const OBJS=[
+    { id:'table',  nat:[76.37,53.77], tgtx:57, h:37.28 },
+    { id:'desk',   nat:[28.23,70.15], tgtx:45.00, h:58.21 },
+    { id:'tissue', nat:[81.98,45.90], tgtx:51, h:6.60  },
+    { id:'tassel', nat:[21.93,56.82], tgtx:38.70, h:36.23 },
+  ];
+  const EXIT_H=6.17;
+
+  const scene=document.getElementById('scene');
+  const mapEl=document.getElementById('map');
+  const exitEl=document.getElementById('exit');
+  let curSceneW=0,curSceneH=0;
+  const lerp=(a,b,t)=>a+(b-a)*t;
+
+  function layout(){
+    const vw=window.innerWidth, vh=window.innerHeight;
+    curSceneW=vw; curSceneH=vh;
+
+    // cover 座標：跟背景 object-fit:cover 完全同步
+    const coverScale=Math.max(vw/CANVAS_W, vh/CANVAS_H);
+    const bgW=CANVAS_W*coverScale, bgH=CANVAS_H*coverScale;
+    const offX=(vw-bgW)/2, offY=(vh-bgH)/2;
+
+    const A=vw/vh;
+    const t=Math.min(1,Math.max(0,(A_WIDE-A)/(A_WIDE-A_MIN)));
+
+    for(const o of OBJS){
+      const el=document.getElementById(o.id);
+      const cx=lerp(o.nat[0],o.tgtx,t);   // 只有 X 位移
+      const cy=o.nat[1];                   // Y 永遠固定
+      el.style.height=(o.h/100*bgH)+'px';   // cover 縮放
+      el.style.left  =(offX+cx/100*bgW)+'px';
+      el.style.top   =(offY+cy/100*bgH)+'px';
+    }
+
+    exitEl.style.height=(EXIT_H/100*vh)+'px';
+    mapEl.classList.remove('show');
+  }
+  window.addEventListener('resize',layout);
+  layout();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>scene.classList.add('animate')));
+
+  // ===== 面板：出現在 Tassel 右側 =====
+  const tassel=document.getElementById('tassel');
+  const mapImg=mapEl.querySelector('img');
+
+  function showMapRightOfTassel(){
+    const cImg=tassel.querySelector('img');
+    const hpx=parseFloat(tassel.style.height);
+    const wpx=hpx*(cImg.naturalWidth/cImg.naturalHeight);
+    const cx=parseFloat(tassel.style.left);
+    const cy=parseFloat(tassel.style.top);
+    const mapH=curSceneH*0.34;
+    mapEl.style.height=mapH+'px';
+    const mapW=mapH*(mapImg.naturalWidth/mapImg.naturalHeight);
+    const gap=wpx*0.12;
+    let left=cx+wpx/2+gap;
+    let top =cy-mapH/2;
+    left=Math.max(4,Math.min(left,curSceneW-mapW-4));
+    top =Math.max(4,Math.min(top ,curSceneH-mapH-4));
+    mapEl.style.left=left+'px';
+    mapEl.style.top =top+'px';
+    mapEl.classList.add('show');
+  }
+
+  function pop(el){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+  tassel.addEventListener('animationend',()=>tassel.classList.remove('pop'));
+
+  tassel.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    pop(tassel);
+    if(mapEl.classList.contains('show')) mapEl.classList.remove('show');
+    else showMapRightOfTassel();
+  });
+  document.getElementById('mapClose').addEventListener('click',(e)=>{ e.stopPropagation(); mapEl.classList.remove('show'); });
+  scene.addEventListener('click',()=>mapEl.classList.remove('show'));
+
+  // 🎯 點右上角 exit 通知外層頁面（主 app）關閉這個場景、回到上一頁
+  document.getElementById('exit').addEventListener('click', () => {
+    window.parent.postMessage({ type: 'exitRoom' }, '*');
+  });
+
+  // 🔧 圖片不能被原生拖曳抓起來（跨瀏覽器保險）
+  document.addEventListener('dragstart', (e) => { if (e.target.tagName === 'IMG') e.preventDefault(); });
+</script>
+
+</body>
+</html>

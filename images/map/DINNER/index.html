@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dinner Scene</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ width:100%; height:100%; background:#000; overflow:hidden; }
+  body{ display:flex; align-items:center; justify-content:center; }
+
+  .scene{ position:relative; overflow:hidden; background:#000; user-select:none; width:100%; height:100%; }
+
+  #back{ position:absolute; inset:0; z-index:1; }
+  #back img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  /* 物件：中心定位、用 cover 座標(跟背景同一縮放)，只裁切不變形 */
+  .obj{ position:absolute; transform:translate(-50%,-50%); transform-origin:center; pointer-events:none; }
+  .obj img{ height:100%; width:auto; display:block; }
+  .animate .obj{ transition: left .5s cubic-bezier(.34,1.62,.5,1); }
+
+  #chair{      z-index:2; }
+  #bell{       z-index:3; }
+  #palm{       z-index:4; pointer-events:auto; cursor:pointer; }
+  #tableLeft{  z-index:5; }
+  #tableRight{ z-index:5; }
+
+  @keyframes pop {
+    0%   { transform: translate(-50%,-50%) scale(1); }
+    40%  { transform: translate(-50%,-50%) scale(1.12); }
+    100% { transform: translate(-50%,-50%) scale(1); }
+  }
+  .pop{ animation: pop .28s ease; }
+
+  #exit{ position:fixed; top:0; right:0; z-index:100; cursor:pointer; min-width:40px; }
+  #exit img{ height:100%; width:auto; display:block; }
+
+  #map{ position:absolute; z-index:9999; opacity:0; transition:opacity .15s ease; pointer-events:none; transform:none; }
+  #map img{ height:100%; width:auto; display:block; }
+  #map.show{ opacity:1; pointer-events:auto; }
+  .map-close{ position:absolute; right:6%; top:4%; width:12%; height:8%; cursor:pointer; }
+  /* 🔧 圖片不能被拖曳抓起來 */
+  img, svg { -webkit-user-drag: none; -khtml-user-drag: none; -moz-user-drag: none; -o-user-drag: none; user-drag: none; }
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+  <div id="back"><img src="assets/dinner-back.png" alt=""></div>
+
+  <div class="obj" id="chair"><img src="assets/dinner-chair.png" alt=""></div>
+  <div class="obj" id="bell"><img src="assets/dinner-bell.png" alt=""></div>
+  <div class="obj" id="palm"><img src="assets/dinner-Palm.png" alt=""></div>
+  <div class="obj" id="tableLeft"><img src="assets/dinner-table-left.png" alt=""></div>
+  <div class="obj" id="tableRight"><img src="assets/dinner-table-right.png" alt=""></div>
+
+  <div id="map"><img src="assets/dinner-map.png" alt=""><div class="map-close" id="mapClose"></div></div>
+</div>
+
+<div id="exit"><img src="assets/dinner-exit.png" alt=""></div>
+
+<script>
+  const CANVAS_W=2880, CANVAS_H=1620;
+  const A_WIDE=CANVAS_W/CANVAS_H;   // 16:9 (位移=0)
+  const A_MIN=0.46;                 // i17 直向 (位移最大；之後有 i17 圖再校準)
+
+  // nat=[原位中心x%, 中心y%(不變)], tgtx=最窄時中心x%, h=高度%(相對 1620 畫布)
+  const OBJS=[
+    { id:'chair',      nat:[24.15,44.88], tgtx:34,     h:19.01 },
+    { id:'bell',       nat:[34.11,26.57], tgtx:43,     h:4.38  },
+    { id:'palm',       nat:[50.40,42.01], tgtx:50.40,  h:32.65 },
+    { id:'tableLeft',  nat:[24.48,76.57], tgtx:35,     h:46.85 },
+    { id:'tableRight', nat:[80.02,71.67], tgtx:80.02,     h:56.67 },
+  ];
+  const EXIT_H=6.17;
+
+  const scene=document.getElementById('scene');
+  const mapEl=document.getElementById('map');
+  const exitEl=document.getElementById('exit');
+  let curSceneW=0,curSceneH=0;
+  const lerp=(a,b,t)=>a+(b-a)*t;
+
+  function layout(){
+    const vw=window.innerWidth, vh=window.innerHeight;
+    curSceneW=vw; curSceneH=vh;
+
+    // cover 座標：跟背景 object-fit:cover 完全一致
+    const coverScale=Math.max(vw/CANVAS_W, vh/CANVAS_H);
+    const bgW=CANVAS_W*coverScale, bgH=CANVAS_H*coverScale;
+    const offX=(vw-bgW)/2, offY=(vh-bgH)/2;
+
+    // 只有比 16:9 更窄(直向)時才做 X 位移；變扁(更寬)時 t=0，純裁切
+    const A=vw/vh;
+    const t=Math.min(1,Math.max(0,(A_WIDE-A)/(A_WIDE-A_MIN)));
+
+    for(const o of OBJS){
+      const el=document.getElementById(o.id);
+      const cx=lerp(o.nat[0],o.tgtx,t);   // 只有 X 位移
+      const cy=o.nat[1];                    // Y 固定
+      el.style.height=(o.h/100*bgH)+'px';   // 用 cover 縮放 → 不變形不縮小
+      el.style.left  =(offX+cx/100*bgW)+'px';
+      el.style.top   =(offY+cy/100*bgH)+'px';
+    }
+
+    exitEl.style.height=(EXIT_H/100*vh)+'px';
+    mapEl.classList.remove('show');
+  }
+  window.addEventListener('resize',layout);
+  layout();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>scene.classList.add('animate')));
+
+  // ===== 面板：出現在 Palm 下方 =====
+  const palm=document.getElementById('palm');
+  const mapImg=mapEl.querySelector('img');
+
+  function showMapBelowPalm(){
+    const hpx=parseFloat(palm.style.height);
+    const cx=parseFloat(palm.style.left);
+    const cy=parseFloat(palm.style.top);
+    const mapH=curSceneH*0.34;
+    mapEl.style.height=mapH+'px';
+    const mapW=mapH*(mapImg.naturalWidth/mapImg.naturalHeight);
+    const gap=hpx*0.04;
+    let left=cx-mapW/2;
+    let top =cy+hpx/2+gap;
+    left=Math.max(4,Math.min(left,curSceneW-mapW-4));
+    top =Math.max(4,Math.min(top ,curSceneH-mapH-4));
+    mapEl.style.left=left+'px';
+    mapEl.style.top =top+'px';
+    mapEl.classList.add('show');
+  }
+
+  function pop(el){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+  palm.addEventListener('animationend',()=>palm.classList.remove('pop'));
+
+  palm.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    pop(palm);
+    if(mapEl.classList.contains('show')) mapEl.classList.remove('show');
+    else showMapBelowPalm();
+  });
+  document.getElementById('mapClose').addEventListener('click',(e)=>{ e.stopPropagation(); mapEl.classList.remove('show'); });
+  scene.addEventListener('click',()=>mapEl.classList.remove('show'));
+
+  // 🎯 點右上角 exit 通知外層頁面（主 app）關閉這個場景、回到上一頁
+  document.getElementById('exit').addEventListener('click', () => {
+    window.parent.postMessage({ type: 'exitRoom' }, '*');
+  });
+
+  // 🔧 圖片不能被原生拖曳抓起來（跨瀏覽器保險）
+  document.addEventListener('dragstart', (e) => { if (e.target.tagName === 'IMG') e.preventDefault(); });
+</script>
+
+</body>
+</html>
